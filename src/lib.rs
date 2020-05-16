@@ -941,12 +941,17 @@ mod tests {
 
     #[test]
     fn test_bad_example_04() {
+        expect("simon@example.com.", Error::InvalidCharacter, Some("rooted DNS syntax"));
+    }
+
+    #[test]
+    fn test_bad_example_05() {
         expect("simon@", Error::DomainEmpty, Some("domain is empty"));
     }
 
     // --------------------------------------------------------------------------------------------
     #[test]
-    fn test_ip4_domain() {
+    fn test_domain_ip4() {
         assert_eq!(
             EmailAddress::from_str("jsmith@[192.168.2.1]")
                 .unwrap()
@@ -956,7 +961,7 @@ mod tests {
     }
 
     #[test]
-    fn test_cyrillic_domain() {
+    fn test_domain_cyrillic() {
         assert_eq!(
             EmailAddress::from_str("квіточка@пошта.укр")
                 .unwrap()
@@ -965,7 +970,7 @@ mod tests {
         );
     }
     #[test]
-    fn test_ip6_domain() {
+    fn test_domain_ip6() {
         assert_eq!(
             EmailAddress::from_str("jsmith@[IPv6:2001:db8::1]")
                 .unwrap()
@@ -975,7 +980,7 @@ mod tests {
     }
 
     #[test]
-    fn test_percent_routed_domain() {
+    fn test_domain_percent_routed() {
         assert_eq!(
             EmailAddress::from_str("user%foo.com@example.org")
                 .unwrap()
@@ -985,7 +990,7 @@ mod tests {
     }
 
     #[test]
-    fn test_single_part_domain() {
+    fn test_domain_single_part() {
         assert_eq!(
             EmailAddress::from_str("admin@mailserver1")
                 .unwrap()
@@ -995,9 +1000,19 @@ mod tests {
     }
 
     #[test]
-    fn test_lotus_domain() {
+    fn test_domain_lotus() {
         assert_eq!(
             EmailAddress::from_str("user+mailbox/department=shipping@example.com")
+                .unwrap()
+                .domain(),
+            "example.com".to_string()
+        );
+    }
+
+    #[test]
+    fn test_domain_at_in_local() {
+        assert_eq!(
+            EmailAddress::from_str("\"Abc@def\"@example.com")
                 .unwrap()
                 .domain(),
             "example.com".to_string()
