@@ -350,7 +350,7 @@ impl Display for Error {
             Error::InvalidIPAddress => write!(f, "Invalid IP Address specified for domain."),
             Error::UnbalancedQuotes => write!(f, "Quotes around the local-part are unbalanced."),
             Error::InvalidComment => write!(f, "A comment was badly formed."),
-            Error::CantHappen => write!(f, "An impossible error was encountered.")
+            Error::CantHappen => write!(f, "An impossible error was encountered."),
         }
     }
 }
@@ -438,6 +438,15 @@ impl EmailAddress {
     /// Returns a String for the email address
     pub fn to_string(&self) -> String {
         [&self.local, "@", &self.domain].concat().to_string()
+    }
+
+    /// Returns the local part of the EmailAddress
+    pub fn local_part(self) -> String {
+        self.local
+    }
+    /// Returns the domain part of the EmailAddress
+    pub fn domain(self) -> String {
+        self.domain
     }
 }
 
@@ -933,5 +942,65 @@ mod tests {
     #[test]
     fn test_bad_example_04() {
         expect("simon@", Error::DomainEmpty, Some("domain is empty"));
+    }
+
+    // --------------------------------------------------------------------------------------------
+    #[test]
+    fn test_ip4_domain() {
+        assert_eq!(
+            EmailAddress::from_str("jsmith@[192.168.2.1]")
+                .unwrap()
+                .domain(),
+            "[192.168.2.1]".to_string()
+        );
+    }
+
+    #[test]
+    fn test_cyrillic_domain() {
+        assert_eq!(
+            EmailAddress::from_str("квіточка@пошта.укр")
+                .unwrap()
+                .domain(),
+            "пошта.укр".to_string()
+        );
+    }
+    #[test]
+    fn test_ip6_domain() {
+        assert_eq!(
+            EmailAddress::from_str("jsmith@[IPv6:2001:db8::1]")
+                .unwrap()
+                .domain(),
+            "[IPv6:2001:db8::1]".to_string()
+        );
+    }
+
+    #[test]
+    fn test_percent_routed_domain() {
+        assert_eq!(
+            EmailAddress::from_str("user%foo.com@example.org")
+                .unwrap()
+                .domain(),
+            "example.org".to_string()
+        );
+    }
+
+    #[test]
+    fn test_single_part_domain() {
+        assert_eq!(
+            EmailAddress::from_str("admin@mailserver1")
+                .unwrap()
+                .domain(),
+            "mailserver1".to_string()
+        );
+    }
+
+    #[test]
+    fn test_lotus_domain() {
+        assert_eq!(
+            EmailAddress::from_str("user+mailbox/department=shipping@example.com")
+                .unwrap()
+                .domain(),
+            "example.com".to_string()
+        );
     }
 }
