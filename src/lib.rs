@@ -238,6 +238,7 @@ An informal description can be found on [Wikipedia](https://en.wikipedia.org/wik
 #[cfg(feature = "serde_support")]
 use serde::{Deserialize, Serialize};
 use std::fmt::{Debug, Display, Formatter};
+use std::ops::Deref;
 use std::str::FromStr;
 
 // ------------------------------------------------------------------------------------------------
@@ -273,6 +274,8 @@ pub enum Error {
     InvalidComment,
     /// An IP address in a `domain-literal` was malformed.
     InvalidIPAddress,
+    /// This can't happen
+    CantHappen,
 }
 
 ///
@@ -283,7 +286,10 @@ pub enum Error {
 ///
 #[derive(Debug, Clone, PartialEq, Eq, Hash)]
 #[cfg_attr(feature = "serde_support", derive(Deserialize, Serialize))]
-pub struct EmailAddress(String);
+pub struct EmailAddress {
+    local: String,
+    domain: String,
+}
 
 // ------------------------------------------------------------------------------------------------
 // Implementations
@@ -344,6 +350,7 @@ impl Display for Error {
             Error::InvalidIPAddress => write!(f, "Invalid IP Address specified for domain."),
             Error::UnbalancedQuotes => write!(f, "Quotes around the local-part are unbalanced."),
             Error::InvalidComment => write!(f, "A comment was badly formed."),
+            Error::CantHappen => write!(f, "An impossible error was encountered.")
         }
     }
 }
@@ -364,7 +371,7 @@ impl<T> Into<std::result::Result<T, Error>> for Error {
 
 impl Display for EmailAddress {
     fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
-        write!(f, "{}", self.0)
+        write!(f, "{}", self.to_string())
     }
 }
 
@@ -413,7 +420,7 @@ impl EmailAddress {
     /// address itself. So, `name@example.org` becomes `mailto:name%40example.org`.
     ///
     pub fn to_uri(&self) -> String {
-        let encoded = encode(&self.0);
+        let encoded = encode(&self.to_string());
         format!("{}{}", MAILTO_URI_PREFIX, encoded)
     }
 
@@ -426,6 +433,11 @@ impl EmailAddress {
     ///
     pub fn to_display(&self, display_name: &str) -> String {
         format!("{} <{}>", display_name, self)
+    }
+
+    /// Returns a String for the email address
+    pub fn to_string(&self) -> String {
+        [&self.local, "@", &self.domain].concat().to_string()
     }
 }
 
@@ -477,30 +489,38 @@ fn parse_address(address: &str) -> Result<EmailAddress, Error> {
     // Deals with cases of '@' in `local-part`, if it is quoted they are legal, if
     // not then they'll return an `InvalidCharacter` error later.
     //
-    let parts = address.rsplitn(2, AT).collect::<Vec<&str>>();
+    let parts: Vec<&str> = address.rsplitn(2, AT).collect::<Vec<&str>>();
     if parts.len() != 2 {
-        Error::MissingSeparator.into()
-    } else {
-        parse_local_part(parts.last().unwrap())?;
-        parse_domain(parts.first().unwrap())?;
-        Ok(EmailAddress(address.to_string()))
+        return Err(Error::MissingSeparator.into());
     }
+    let local = parts.last().ok_or(Error::CantHappen)?.deref();
+    let domain = parts.first().ok_or(Error::CantHappen)?.deref();
+    parse_local_part(local)?;
+    parse_domain(domain)?;
+
+    Ok(EmailAddress {
+        local: local.into(),
+        domain: domain.into(),
+    })
 }
 
 fn parse_local_part(part: &str) -> Result<(), Error> {
     if part.is_empty() {
-        Error::LocalPartEmpty.into()
-    } else if part.len() > LOCAL_PART_MAX_LENGTH {
-        Error::LocalPartTooLong.into()
-    } else if part.starts_with(DQUOTE) && part.ends_with(DQUOTE) {
+        return Err(Error::LocalPartEmpty);
+    }
+    if part.len() > LOCAL_PART_MAX_LENGTH {
+        return Err(Error::LocalPartTooLong);
+    }
+    if part.starts_with(DQUOTE) && part.ends_with(DQUOTE) {
         if part.len() == 2 {
-            Error::LocalPartEmpty.into()
+            return Err(Error::LocalPartEmpty);
         } else {
-            parse_quoted_local_part(&part[1..part.len() - 1])
+            parse_quoted_local_part(&part[1..part.len() - 1])?
         }
     } else {
-        parse_unquoted_local_part(part)
+        parse_unquoted_local_part(part)?
     }
+    Ok(())
 }
 
 fn parse_quoted_local_part(part: &str) -> Result<(), Error> {
